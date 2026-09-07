@@ -1,17 +1,18 @@
-# 所依（酱油部）Python 游戏框架
+# 所依（酱油部）Python 课程 Demo
 
 把《杀戮尖塔2》人物 mod「所依/酱油部」的**素材加工机制**移植到 Python 的类杀戮尖塔游戏框架。
 
-> 说明：这是**游戏引擎框架**，不是完整可玩的成品。它实现的是「战斗逻辑引擎 + 素材系统」，
-> 队友要做的「C# 卡牌移植」将以**数据驱动/接口挂载**的方式接入本框架。
-> 本框架目前用文本界面跑通一场简单战斗，证明核心循环与素材结算可用。
+> 说明：这是适合软件工程课程作业的单场战斗 Demo。它保留「三槽素材加工、
+> 承载牌触发素材、素材轮换、起始遗物自动加工」四个核心点，不追求完整复刻 MOD。
 
 ---
 
 ## 已接入的角色源码
 
 - `soyoi_game/`：队友继续开发的战斗框架与界面。
-- `soyoi_port/`：独立于 pygame 的所依角色内容包，包含角色、起始牌、80 张奖励牌目录、17 种素材和素材规则。
+- `soyoi_game/content/soyoi_cards.py`：实际使用的 40 张精简奖励牌（20 普通、15 罕见、5 稀有）。
+- `soyoi_game/content/materials.py`：Demo 使用的 6 种核心素材。
+- `soyoi_port/`：原始移植参考目录，仍保存 80 张奖励牌和 17 种素材，方便查阅 MOD 设定。
 - `tests/`：角色数据、素材附着与两个模块一致性的基础测试。
 - `examples/integration_example.py`：战斗框架接入角色内容包的最小示例。
 
@@ -21,7 +22,13 @@
 python -m unittest discover -s tests -v
 ```
 
-复杂奖励牌中标记为 `requires_custom_logic=True` 的条目仍需要接入战斗事件钩子，不能直接视为完整可玩卡牌。
+40 张入池卡牌的基础版和升级版都已接入统一结算器，不再依赖“只有描述、没有逻辑”的占位行为。
+
+查看每张牌在战斗框架中的实际结算结果：
+
+```powershell
+python -m scripts.card_showcase
+```
 
 ---
 
@@ -31,7 +38,7 @@ python -m unittest discover -s tests -v
 
 | 你负责 | 队友负责 |
 | --- | --- |
-| 战斗引擎（抽牌/出牌/能量/回合） | 移植 C# 卡牌（打击/防御/80张奖励牌） |
+| 战斗引擎（抽牌/出牌/能量/回合） | 维护 40 张精简奖励牌和数值 |
 | 素材系统的**运行时**（素材盒、槽位、结算管线） | 移植 C# 素材（分类/效果/加工规则） |
 | 状态（Power）计算、敌人意图 | 移植 C# 能力（Powers）与遗物 |
 | 数据驱动的卡/素材/角色定义 | 把 C# 卡牌转成这份数据/接口格式 |
@@ -138,16 +145,16 @@ def make_perler_color_pack() -> MaterialCardBase:
 触发时机（`MaterialEffectTiming`）：常驻/承载牌打出后/跨回合保留后/下次打出后/本场首打。
 目标（`MaterialEffectTarget`）：继承/玩家/承载牌。
 
-### 4.3 复杂卡牌（自定义逻辑）
+### 4.3 素材加工牌
 
-如果卡牌效果无法用数据表达（如生成素材并加工、选牌、合料），用**行为钩子**挂载：
+课程版把复杂的选牌窗口简化为 `ATTACH_MATERIAL`。指定素材编号时加工该素材，
+不指定时从 6 种核心素材中随机选择：
 
 ```python
-def my_card_behavior(combat, card, target):
-    # 这里写该卡的自定义逻辑
-    ...
-
-register_card_behavior("my_card_id", my_card_behavior)
+RewardEffectSpec(
+    RewardEffectOperation.ATTACH_MATERIAL,
+    material_id="perler_color_pack",
+)
 ```
 
 框架的 `MaterialEffectResolver` 会在承载牌打出后自动结算素材效果，复杂卡的"生成/加工/合料"可通过 `soyoi.material_runtime` 提供的 API 调用：
@@ -165,20 +172,20 @@ register_card_behavior("my_card_id", my_card_behavior)
 > python -m soyoi_game
 ```
 
-或跑冒烟测试（无 UI，验证核心逻辑）：
+或运行自动测试（会逐张结算 40 张牌的基础版和升级版）：
 
 ```powershell
-> python scripts/smoke_test.py
+> python -m unittest discover -s tests -v
 ```
 
 ---
 
 ## 6. 下一步（队友移植好第一版后要接的）
 
-1. **卡牌 → 内容层**：把 C# 的 80 张奖励牌、素材牌转成 `CardSpec` / `MaterialCardBase`，注册到 `content/character.py`。
+1. **卡牌平衡**：试玩 40 张精简牌，记录过强或过弱的数值，再小步调整。
 2. **敌人**：把 C# 敌人转成 `Enemy` + `act_pattern` 意图序列。
 3. **能力（Powers）**：C# 的 `*Power`（加班、夜间回流等）在 `core/powers.py` 里按需扩展，或钩到 `combat` 的事件钩子上（`on_player_turn_start` / `on_round_end` 等）。
-4. **遗物**：`content/character.py` 的 `starting_relics`，加一个遗物运行时。
+4. **遗物扩展**：当前起始遗物已接入；如课程时间充足，再增加奖励遗物。
 5. **UI**：现在文本界面只展示/出牌，换 pygame 时替换 `ui/`。
 6. **地图/奖励/商店/营地**：当前框架只有单场战斗，这些在 `core` 之上再建一层。
 
@@ -186,7 +193,8 @@ register_card_behavior("my_card_id", my_card_behavior)
 
 ## 7. 当前已知简化（在改为完整版之前）
 
-- 卡片自定逻辑的钩子为示例，还没有完整对齐 mod 的"选牌/满槽合料"交互。
+- “选择素材/选择承载牌”被简化为自动选择，未制作复杂的弹窗与拖放操作。
+- 原始 80 张奖励牌只作为参考数据，不进入课程 Demo 的奖励池。
 - 素材效果的"每回合一次""本场一次"用简化计数器，待队友接入真实卡后完善。
-- 无遗物/药水/能力（Powers 只实现了基础 5 状态 + 覆甲/活力）。
+- 无药水与额外奖励遗物（Powers 只实现课程版会用到的基础状态）。
 - 无地图与奖励，仅单场战斗验证。

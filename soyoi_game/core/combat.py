@@ -43,6 +43,7 @@ class CombatState:
     # --- 素材/回合计数（酱油部 mod 用，见 soyoi/）---
     materials_played_this_round: int = 0
     cards_played_this_round: int = 0
+    last_card_target: Optional[Creature] = None
 
     def __post_init__(self) -> None:
         # 初始牌堆整理：洗牌
@@ -94,6 +95,7 @@ class CombatState:
             raise ValueError(f"能量不足：{card.title} 需要 {cost}，当前 {self.player.energy}。")
         # 扣能量
         self.player.energy -= cost
+        self.last_card_target = target
         self.phase = "resolving"
         from ..combat.resolver import ResolveCard   # 延迟导入避免循环
         resolve = ResolveCard(self)
@@ -118,7 +120,7 @@ class CombatState:
         """玩家手牌进入弃牌堆（保留牌除外）。"""
         hand = self.player.piles.pile(PileType.HAND)
         keep: list[Card] = []
-        for card in hand.cards:
+        for card in list(hand.cards):
             from .cards import CardKeyword
             if CardKeyword.RETAIN in card.keywords or card.retained_this_turn:
                 keep.append(card)

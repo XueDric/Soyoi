@@ -142,6 +142,7 @@ class RewardEffectOperation(IntEnum):
     GAIN_THORNS = 11
     LOSE_HP = 12
     HEAL = 13
+    ATTACH_MATERIAL = 14
 
 
 @dataclass
@@ -150,6 +151,7 @@ class RewardEffectSpec:
     operation: RewardEffectOperation
     amount: float = 0.0
     hits: int = 1
+    material_id: Optional[str] = None
 
 
 # 一个方便的"卡牌工厂"，由内容数据生成 Card 实例

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from ..core.cards import Card, CardKeyword, PileType, RewardEffectOperation, TargetType
+from ..core.cards import Card, CardKeyword, RewardEffectOperation, RewardEffectSpec, TargetType
 from ..core.combat import CombatState
 from ..core.creature import Creature
 from ..core.powers import Powers, compute_attack_damage, compute_block_gain
@@ -30,7 +30,7 @@ class ResolveCard:
         effects = card.current_effects()
 
         for eff in effects:
-            self._apply_effect(card, eff.operation, eff.amount, eff.hits, target)
+            self._apply_effect(card, eff, target)
 
         # 关键字处理
         if CardKeyword.EXHAUST in card.keywords:
@@ -50,9 +50,12 @@ class ResolveCard:
         # 见 soyoi/material_lifecycle.py。此处预留。
         return None
 
-    def _apply_effect(self, card: Card, op: RewardEffectOperation, amount: float, hits: int, target: Optional[Creature]) -> None:
+    def _apply_effect(self, card: Card, effect: RewardEffectSpec, target: Optional[Creature]) -> None:
         owner = self.combat.player
         enemies = self.combat.living_enemies
+        op = effect.operation
+        amount = effect.amount
+        hits = effect.hits
 
         def targets_of(tg: TargetType) -> list[Creature]:
             base = card.target
@@ -93,9 +96,17 @@ class ResolveCard:
         elif op == RewardEffectOperation.GAIN_THORNS:
             owner.add_power(Powers.THORNS, int(amount))
         elif op == RewardEffectOperation.LOSE_HP:
-            owner.take_attack(amount, None)
+            owner.hp = max(0, owner.hp - int(amount))
         elif op == RewardEffectOperation.HEAL:
             owner.hp = min(owner.max_hp, owner.hp + int(amount))
+        elif op == RewardEffectOperation.ATTACH_MATERIAL:
+            from ..content.materials import CORE_MATERIAL_IDS, make_material
+            from ..soyoi.material_runtime import attach_next_available
+
+            material_id = effect.material_id or self.combat.rng.choice(CORE_MATERIAL_IDS)
+            material = make_material(material_id)
+            attach_next_available(owner, card, material.as_bundle())
+            self.combat.materials_played_this_round += 1
         elif op == RewardEffectOperation.LOWER_ENEMY_STRENGTH_THIS_TURN:
             for t in targets_of(card.target):
                 t.add_power(Powers.TEMP_STRENGTH, -int(amount))

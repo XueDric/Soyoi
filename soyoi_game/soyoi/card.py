@@ -73,6 +73,9 @@ class MaterialCardBase(Card):
     def category_text(self) -> str:
         return self.material_category.label
 
+    def as_bundle(self) -> MaterialBundle:
+        return MaterialBundle.from_material(self)
+
 
 # 承载能力的判定（对应 C# MaterialAttachmentRuntime.CanCarryMaterials / IsBaseCard）
 def can_carry_materials(card: Card) -> bool:

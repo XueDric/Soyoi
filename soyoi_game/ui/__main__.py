@@ -16,10 +16,7 @@ from ..core.cards import Card, PileType, CardType, CardKeyword
 from ..core.player import Player
 from ..core.enemy import Enemy, Intent, IntentAction
 from ..core.combat import CombatState
-from ..content.character import build_character, instantiate_deck
-
-from ..soyoi.material_effect_resolver import MaterialEffectResolver
-from ..soyoi.material_runtime import begin_combat
+from ..content.character import build_character, instantiate_deck, setup_soyoi_combat
 
 
 def make_player() -> Player:
@@ -120,21 +117,7 @@ def run() -> None:
     enemy = make_enemy()
     combat = CombatState(player=player, enemies=[enemy])
     combat.next_enemy_intents()
-    begin_combat(player)
-
-    # 注册素材结算进战斗
-    resolver = MaterialEffectResolver(combat)
-
-    # 把素材结算挂到 after_card_played
-    def _after_card_played(state, card):
-        # 本体效果已由 ResolveCard 处理，这里补素材效果
-        from ..soyoi.card import can_carry_materials
-        if can_carry_materials(card):
-            last_target = None
-            # 简化：素材效果目标默认第一个存活敌人，由 resolver 自己判定
-            resolver.resolve_after_carrier_played(card, state.get_target())
-
-    combat.after_card_played.append(_after_card_played)
+    setup_soyoi_combat(combat)
 
     combat.start_combat()
     show_state(combat)

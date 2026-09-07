@@ -11,6 +11,10 @@ class RepositoryIntegrationTests(unittest.TestCase):
         self.assertEqual(framework_character.name, SOYOI.name)
         self.assertEqual(framework_character.starting_hp, SOYOI.starting_hp)
         self.assertEqual(len(framework_character.starting_deck), len(SOYOI.starting_deck))
+        self.assertEqual(
+            [card.card_id for card in framework_character.starting_deck],
+            list(SOYOI.starting_deck),
+        )
 
 
 if __name__ == "__main__":

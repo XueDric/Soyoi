@@ -93,7 +93,7 @@ def attach_next_available(player: "Player", carrier: "Card", bundle: MaterialBun
 
 def try_attach_from_box(player: "Player", bundle: MaterialBundle, carrier: "Card", slot: int) -> Optional[MaterialBundle]:
     """从素材盒取材并附着。若素材不在盒中或无法承载则失败。"""
-    from .soyoi.card import can_carry_materials as ccm
+    from .card import can_carry_materials as ccm
     box = _box(player)
     if bundle not in box or not ccm(carrier):
         return None
