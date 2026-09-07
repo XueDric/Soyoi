@@ -8,6 +8,23 @@
 
 ---
 
+## 已接入的角色源码
+
+- `soyoi_game/`：队友继续开发的战斗框架与界面。
+- `soyoi_port/`：独立于 pygame 的所依角色内容包，包含角色、起始牌、80 张奖励牌目录、17 种素材和素材规则。
+- `tests/`：角色数据、素材附着与两个模块一致性的基础测试。
+- `examples/integration_example.py`：战斗框架接入角色内容包的最小示例。
+
+运行测试：
+
+```powershell
+python -m unittest discover -s tests -v
+```
+
+复杂奖励牌中标记为 `requires_custom_logic=True` 的条目仍需要接入战斗事件钩子，不能直接视为完整可玩卡牌。
+
+---
+
 ## 1. 这个框架解决什么
 
 你（搭框架）和队友（移植人物代码）的分工：
