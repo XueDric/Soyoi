@@ -3,8 +3,7 @@ name = "soyoi-python-port"
 version = "0.1.0"
 description = "Engine-independent Python content pack for a Soyoi-inspired course game"
 requires-python = ">=3.10"
-dependencies = []
+dependencies = ["pygame-ce==2.5.7"]
 
 [tool.ruff]
 line-length = 100
-

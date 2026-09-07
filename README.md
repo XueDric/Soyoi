@@ -168,9 +168,18 @@ RewardEffectSpec(
 ## 5. 运行
 
 ```powershell
-# 用文本界面玩一场战斗
+# 安装项目和 pygame-ce
+python -m pip install -e .
+
+# 启动 pygame 可视化战斗
 > python -m soyoi_game
+
+# 保留的纯文本调试界面
+> python -m soyoi_game.ui
 ```
+
+可视化 Demo 支持点击卡牌、选择敌人、结束回合、重新开始和窗口缩放。攻击牌需要
+先选择卡牌再选择敌人；技能牌点击后直接结算。数字键可选择手牌，回车或空格结束回合。
 
 或运行自动测试（会逐张结算 40 张牌的基础版和升级版）：
 
