@@ -18,6 +18,7 @@ from ..content.character import build_character, setup_soyoi_combat
 from ..content.soyoi_cards import PLAYABLE_REWARD_CARDS
 from ..core.cards import Card, CardRarity, CardType, PileType, TargetType
 from ..core.combat import CombatState
+from ..core.creature import Creature
 from ..core.enemy import Enemy, Intent, IntentAction
 from ..core.player import Player
 from ..soyoi.card import get_loadout
@@ -55,6 +56,19 @@ MATERIAL_COLORS = {
     "badge_blank": (104, 142, 193),
     "liquid_glue": (153, 105, 174),
     "self_sealing_bag": (90, 170, 102),
+}
+
+# 状态（Power）显示：显示名 + 颜色。键与前缀 powers.Powers 一致。
+STATUS_STYLE: dict[str, tuple[str, tuple[int, int, int]]] = {
+    "Strength": ("力量", (232, 184, 76)),
+    "Dexterity": ("敏捷", (104, 142, 193)),
+    "Vulnerable": ("易伤", (218, 96, 83)),
+    "Weak": ("虚弱", (153, 105, 174)),
+    "Poison": ("中毒", (90, 170, 102)),
+    "Thorns": ("荆棘", (146, 129, 100)),
+    "Vigor": ("活力", (238, 190, 62)),
+    "Plating": ("覆甲", (74, 121, 176)),
+    "TempStrength": ("临时力量", (232, 184, 76)),
 }
 
 
@@ -140,6 +154,7 @@ class PygameCombatDemo:
             pygame.image.load(str(BACKGROUND_PATH)).convert(), (WIDTH, HEIGHT)
         )
         self.card_rects: list[tuple[Card, pygame.Rect]] = []
+        self._material_slots: list[tuple[Card, int, object, pygame.Rect]] = []
         self.enemy_rect = pygame.Rect(785, 155, 255, 245)
         self.end_turn_rect = pygame.Rect(1090, 72, 152, 50)
         self.restart_rect = pygame.Rect(540, 405, 200, 54)
@@ -321,6 +336,9 @@ class PygameCombatDemo:
         draw_text(self.canvas, str(player.energy), 22, INK, (269, 355), bold=True, anchor="center")
         draw_text(self.canvas, "能量", 13, PAPER, (304, 349), anchor="midleft")
 
+        # 状态显示：头像右侧、酱油部下边（血条上方）区域
+        self.draw_statuses(player, 178, 244, max_width=190, line_height=20)
+
     def draw_enemy(self) -> None:
         target = self.enemy_rect
         selected = self.selected_card is not None
@@ -351,6 +369,11 @@ class PygameCombatDemo:
         hp_rect = pygame.Rect(805, 374, 210, 20)
         draw_bar(self.canvas, hp_rect, self.enemy.hp, self.enemy.max_hp, CORAL)
         draw_text(self.canvas, f"{self.enemy.hp}/{self.enemy.max_hp}", 14, WHITE, hp_rect.center, bold=True, anchor="center")
+
+        # 状态显示：怪物血条下方
+        px = target.centerx - 100
+        self.draw_statuses(self.enemy, px, 402, max_width=200, line_height=20)
+
         intent_rect = pygame.Rect(1048, 172, 170, 72)
         draw_panel(self.canvas, intent_rect, (26, 36, 42, 225), (173, 190, 191))
         draw_text(self.canvas, "下一步", 13, MUTED, (intent_rect.centerx, 183), anchor="midtop")
@@ -369,6 +392,78 @@ class PygameCombatDemo:
             pygame.draw.rect(self.canvas, (142, 159, 164), rect, 1, border_radius=5)
             draw_text(self.canvas, str(count), 20, WHITE, (rect.centerx, rect.y + 20), bold=True, anchor="center")
             draw_text(self.canvas, label, 12, MUTED, (rect.centerx, rect.bottom - 12), anchor="center")
+
+    def draw_statuses(self, creature: Creature, x: int, y: int, *, max_width: int = 280, align: str = "left", line_height: int = 22) -> None:
+        """渲染一个生物当前持有的状态（力量/易伤/虚弱等）为一行小胶囊。
+
+        align="left" 从左往右排，align="center" 居中排。返回绘制到的 y。
+        """
+        powers = getattr(creature, "powers", {})
+        # 只显示层数 > 0 的状态，按固定的 STATUS_STYLE 顺序
+        active = [(k, v.amount) for k, v in powers.items() if getattr(v, "amount", 0) > 0]
+        if not active:
+            return y
+        # 按 key 排序，保证稳定展示顺序
+        active.sort(key=lambda kv: kv[0])
+        cursor = x
+        for key, amount in active:
+            label = STATUS_STYLE.get(key, (key, MUTED))[0]
+            color = STATUS_STYLE.get(key, (key, MUTED))[1]
+            text = f"{label} {amount}"
+            image = font(13).render(text, True, (255, 255, 255))
+            w, h = image.get_size()
+            pad_x, pad_y = 6, 3
+            pill_w, pill_h = w + pad_x * 2, h + pad_y * 2
+            if cursor + pill_w > x + max_width:
+                break
+            rect = pygame.Rect(cursor, y, pill_w, pill_h)
+            pygame.draw.rect(self.canvas, (*color, 235), rect, border_radius=pill_h // 2)
+            pygame.draw.rect(self.canvas, (255, 255, 255), rect, 1, border_radius=pill_h // 2)
+            self.canvas.blit(image, image.get_rect(center=rect.center))
+            cursor += pill_w + 6
+        return y + line_height
+
+    def draw_material_tooltip(self, mouse: tuple[int, int]) -> None:
+        """鼠标悬停在素材圆圈上时显示该素材的效果说明。"""
+        for card, slot, bundle, slot_rect in self._material_slots:
+            if not slot_rect.collidepoint(mouse):
+                continue
+            # 收集该槽素材组件的效果文本
+            title = getattr(card, "title", "牌")
+            comp_texts = []
+            for comp in bundle.components:
+                text = getattr(comp, "effect_text", "") or getattr(comp, "text", "")
+                cat = getattr(comp, "category_text", "")
+                comp_texts.append((comp.title if hasattr(comp, "title") else "素材", cat, text))
+            if not comp_texts:
+                return
+            lines = [f"素材槽 {slot + 1}：{title}"]
+            for cname, cat, text in comp_texts:
+                lines.append(f"{cat}{(' ' + text) if text else ''}")
+            # draw tooltip panel near the slot
+            self._draw_tooltip_panel(slot_rect.x + slot_rect.width, slot_rect.y - 8, lines)
+            return
+
+    def _draw_tooltip_panel(self, x: int, y: int, lines: list[str]) -> None:
+        """绘制一个简易 tooltip 浮层。"""
+        pad = 8
+        widths = [font(14).size(line)[0] for line in lines]
+        h = len(lines) * 20 + pad * 2
+        w = max(widths) + pad * 2
+        w = min(w, 300)
+        # clamp to screen
+        if x + w > WIDTH - 8:
+            x = WIDTH - 8 - w
+        if y + h > HEIGHT - 8:
+            y = HEIGHT - 8 - h
+        rect = pygame.Rect(x, y, w, h)
+        pygame.draw.rect(self.canvas, (24, 31, 38, 240), rect, border_radius=6)
+        pygame.draw.rect(self.canvas, (238, 184, 76), rect, 1, border_radius=6)
+        yy = rect.y + pad
+        for i, line in enumerate(lines):
+            color = (176, 129, 45) if i == 0 else (240, 240, 240)
+            draw_text(self.canvas, line, 14, color, (rect.x + pad, yy), anchor="topleft")
+            yy += 20
 
     def draw_card(self, card: Card, rect: pygame.Rect, hovered: bool) -> None:
         color = CARD_COLORS[card.card_type]
@@ -397,6 +492,25 @@ class PygameCombatDemo:
                 material_id = bundle.components[0].card_id
                 pygame.draw.circle(self.canvas, MATERIAL_COLORS.get(material_id, TEAL), center, 9)
                 pygame.draw.circle(self.canvas, INK, center, 9, 1)
+                # 记录素材槽的可悬停区域（供 material tooltip 使用）
+                slot_rect = pygame.Rect(center[0] - 10, center[1] - 10, 20, 20)
+                self._material_slots.append((card, slot, bundle, slot_rect))
+
+        # 追加素材效果描述：在卡面正文后追加该牌已装备素材的效果文本（金色）
+        if loadout.material_count > 0:
+            effects = []
+            for b in loadout.slots:
+                if b is None:
+                    continue
+                for comp in b.components:
+                    text = getattr(comp, "effect_text", "") or getattr(comp, "text", "")
+                    if text:
+                        effects.append(text)
+            if effects:
+                y_pos = rect.y + 82 + len(wrap_text(card.text, rect.width - 20, 14, 4)) * 21 + 6
+                for line in wrap_text("◆ " + "；".join(effects), rect.width - 20, 13, 3):
+                    draw_text(self.canvas, line, 13, (176, 129, 45), (rect.x + 10, y_pos), anchor="midleft")
+                    y_pos += 18
 
         rarity_marks = {CardRarity.BASIC: 0, CardRarity.COMMON: 1, CardRarity.UNCOMMON: 2, CardRarity.RARE: 3}.get(card.rarity, 0)
         for index in range(rarity_marks):
@@ -405,8 +519,11 @@ class PygameCombatDemo:
     def draw_hand(self) -> None:
         mouse = self.current_mouse()
         self.card_rects = self.hand_layout(mouse)
+        self._material_slots.clear()
         for card, rect in self.card_rects:
             self.draw_card(card, rect, rect.collidepoint(mouse))
+        # 鼠标悬停在素材槽上时，绘制素材效果 tooltip
+        self.draw_material_tooltip(mouse)
 
     def draw_float_texts(self) -> None:
         for item in self.float_texts:
