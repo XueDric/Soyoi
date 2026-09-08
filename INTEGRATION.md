@@ -3,17 +3,15 @@
 > 本文档记录把队友「所依」人物移植代码整合进本项目的经过与现状，
 > 供两人后续协作对齐。
 
-> **项目主目录**：所有内容已归拢到本目录 `soyoi-game/`（本文件所在目录）。
-> 这是一个自包含的游戏项目主目录——包含可运行代码、测试、参考目录、
-> 规划文档，以及完整 git 历史（外层 `小学期游戏` 仅作为包裹这个主目录的壳）。
-> 进入本目录后即可运行 `python -m soyoi_game`。
+> **项目主目录**：仓库根目录 `D:\Soyoi` 是唯一项目根，不再嵌套 `soyoi-game/`。
+> 在仓库根目录即可运行 `python -m soyoi_game`。
 
 ---
 
 ## 1. 整合结果
 
-项目主目录现已成为**唯一正式运行入口**，采用队友分支 `feature/playable-40-card-core`
-的完整实现作为权威基线。原独立版 `soyoi_game/`（仅引擎骨架，无内容卡牌）已被替换。
+仓库根目录是**唯一正式运行入口**。`soyoi_game/` 是 Python 包，
+`soyoi_port/` 是原始 MOD 数据参考，两者职责不同，不是重复项目。
 
 现状：在本目录内，`python -m soyoi_game` 即可运行 pygame 可视化战斗 Demo，
 `python -m unittest discover -s tests -v` 全部通过（共 16 项）。
@@ -52,13 +50,14 @@
 │   │   └── materials.py       # 6 种核心素材
 │   └── ui/                    # pygame 可视化 Demo + 文本调试界面
 ├── soyoi_port/                # 原始移植参考目录（80 张牌 + 17 素材）
-├── tests/                     # 12 个测试（角色/卡牌/素材/整合）
+├── tests/                     # 16 个测试（角色/卡牌/素材/UI/整合）
+├── docs/                      # 需求、初始方案和 UI 生成提示词
 ├── scripts/
 │   ├── card_showcase.py       # 逐张结算 40 张牌并输出结果
 │   └── smoke_test.py          # 精简冒烟测试
 ├── examples/integration_example.py
 ├── tools/extract_soyoi.py
-└── SoyoiMod-Rebuild/          # 原 C# mod 源码（参考，不参与运行）
+└── tools/extract_soyoi.py
 ```
 
 ---
@@ -88,7 +87,7 @@
 | 成员 | 目录 | 职责 |
 | --- | --- | --- |
 | 你（角色/内容） | `soyoi_game/content/`、`soyoi_game/soyoi/`、`soyoi_port/` | 卡牌数据、素材规则、角色数值、测试 |
-| 队友（UI/外壳） | `main.py`、`soyoi_game/ui/`（pygame 层待建） | 窗口循环、场景切换、鼠标事件、卡牌绘制 |
+| 队友（UI/外壳） | `soyoi_game/ui/`、`assets/` | 窗口循环、鼠标事件、卡牌绘制与动画 |
 
 **边界**：UI 层只把点击翻译成命令，不直接改生命/格挡/能量/牌堆；
 角色模块只返回效果与状态变化，不直接绘图、**不 import pygame**。

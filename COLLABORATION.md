@@ -2,44 +2,49 @@
 
 ## 代码边界
 
-队友负责 pygame 外壳：`main.py`、窗口循环、场景切换、鼠标事件、卡牌绘制和动画。
+| 负责人 | 目录 | 工作内容 |
+| --- | --- | --- |
+| 角色与规则 | `soyoi_game/content/`、`soyoi_game/soyoi/` | 卡牌、素材、角色数值与规则测试 |
+| 界面与流程 | `soyoi_game/ui/`、`assets/` | pygame 界面、输入、动画与资源 |
+| 双方共同 | `soyoi_game/core/`、`tests/` | 战斗接口、回归测试和最终验收 |
 
-你负责角色内容：`characters/soyoi/`、卡牌数据、素材规则、角色数值和相关测试。
+UI 层只把玩家输入转换为 `CombatState` 命令，不直接修改生命、格挡、能量或牌堆。
+内容层不导入 pygame。需要修改共同文件时，先在群里说明文件名，避免同时编辑。
 
-双方共同维护一个很小的战斗接口，不要同时修改彼此目录。推荐接口如下：
+## Main 协作流程
 
-```python
-class CombatAPI:
-    def queue_effect(self, effect, source_card, target): ...
-    def move_card(self, card, destination): ...
-    def choose_from_hand(self, predicate): ...
-    def choose_enemy(self): ...
+项目按当前约定直接使用 `main`，不再建立功能分支。每次开始工作前执行：
+
+```powershell
+git switch main
+git pull origin main
 ```
 
-pygame 层只负责把点击翻译成命令；角色模块只返回效果和状态变化，不直接绘图。
+每次只完成一个小目标，测试通过后提交：
 
-## Git 分支
+```powershell
+python -m unittest discover -s tests -v
+git add 修改过的文件
+git commit -m "feat: 简短说明本次改动"
+git pull --rebase origin main
+git push origin main
+```
 
-- `main`：始终保持能启动、能测试。
-- `feature/pygame-shell`：队友开发窗口和战斗界面。
-- `feature/soyoi-character`：你开发所依角色。
-- 每次提交只完成一个小目标，例如“显示手牌”或“实现素材附着”。
-- 每天至少合并一次，先运行测试，再由另一人试玩一回合。
+如果 `git pull --rebase` 出现冲突，先停止推送，与修改同一文件的队友一起确认保留内容。
+不要使用 `git push --force`，也不要上传 `__pycache__`、虚拟环境或临时截图。
 
-## 对接顺序
+## 当前对接状态
 
-1. 队友先能在窗口中显示一张 `CardDefinition`。
-2. 接入打击、防御，跑通能量与弃牌。
-3. 接入 `attach_material()`，确认素材不计作正常出牌。
-4. 接入 `resolve_materials()`，让拼豆色包追加两段伤害。
-5. 接入赶制、细修和活动证。
-6. 核心稳定后，再从 80 张奖励牌目录中一次挑 3 至 5 张实现。
+1. 战斗核心、四个牌堆、能量与敌人意图已接通。
+2. 所依 5 类起始牌、40 张奖励牌和 6 种素材已可结算。
+3. pygame 已支持点击出牌、目标选择、结束回合、胜负和重新开始。
+4. 下一步优先完成战斗奖励选牌、三种普通敌人与一个 Boss。
 
-## 合并门禁
+## 提交门禁
 
-- `python -m unittest discover -s tests -v` 全部通过。
-- 一张卡不能同时处于两个牌堆。
-- UI 不直接修改生命、格挡、能量或牌堆列表。
-- 角色模块不导入 pygame。
-- 标记 `requires_custom_logic=True` 的卡不能直接加入奖励池。
-
+- 全部自动测试通过。
+- `python -m soyoi_game` 可以进入可视化战斗。
+- 一张卡不能同时出现在两个牌堆。
+- UI 不绕过 `CombatState` 直接修改战斗数据。
+- 卡牌文字、费用和素材槽在 1280×720 下无重叠。
+- 提交信息说明实际改动，不使用“update files”等模糊描述。
