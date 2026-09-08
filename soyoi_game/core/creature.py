@@ -70,6 +70,17 @@ class Creature:
         """回合结束清空格挡。"""
         self.block = 0
 
+    def trigger_plating(self) -> None:
+        """覆甲回合末结算：获得等于层数的格挡，然后层数-1。
+
+        对应原版 Plated Seelie 行为：回合结束给 X 格挡，X-1。
+        注意：此方法必须在敌人回合开始前调用，这样给的格挡能挡住本轮敌人。
+        """
+        plating = self.get_power_amount(Powers.PLATING)
+        if plating > 0:
+            self.gain_block(plating)
+            self.add_power(Powers.PLATING, -1)
+
     def end_turn_tick(self) -> None:
         """回合结束的状态结算（中毒等）。基础在此，子类可扩展。"""
         poison = self.get_power_amount(Powers.POISON)

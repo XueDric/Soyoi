@@ -106,6 +106,8 @@ class CombatState:
     def end_player_turn(self) -> None:
         """结束玩家回合：触发弃牌/保留、结算敌人回合。"""
         self.discard_hand()
+        # 覆甲在敌人回合前结算：给格挡用于挡本轮敌人，然后层数-1。
+        self.player.trigger_plating()
         self.end_enemy_turn()
         self.resolve_round_end()
         if not self.has_living_enemy:
