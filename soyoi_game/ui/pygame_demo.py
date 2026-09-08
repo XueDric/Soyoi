@@ -6,7 +6,6 @@ import argparse
 import os
 import random
 import sys
-from dataclasses import dataclass
 from pathlib import Path
 
 if "--screenshot" in sys.argv:
@@ -29,18 +28,30 @@ HEIGHT = 720
 FPS = 60
 ROOT = Path(__file__).resolve().parents[2]
 BACKGROUND_PATH = ROOT / "assets" / "backgrounds" / "craft_club_room.png"
+CHARACTER_PATH = ROOT / "assets" / "characters" / "soyoi_idle.webp"
+CARD_ART_DIR = ROOT / "assets" / "card_art"
 
-INK = (30, 36, 43)
-PAPER = (246, 244, 238)
+CARD_ART_PATHS = {
+    "strike_soyoi": CARD_ART_DIR / "strike_soyoi.webp",
+    "soyoi_reward_001": CARD_ART_DIR / "soyoi_reward_001.webp",
+    "soyoi_reward_013": CARD_ART_DIR / "soyoi_reward_013.webp",
+    "soyoi_reward_016": CARD_ART_DIR / "soyoi_reward_016.webp",
+    "soyoi_reward_026": CARD_ART_DIR / "soyoi_reward_026.webp",
+}
+
+INK = (35, 40, 44)
+PAPER = (239, 229, 207)
 WHITE = (255, 255, 255)
-TEAL = (37, 132, 140)
-TEAL_DARK = (24, 86, 94)
-CORAL = (218, 96, 83)
-CORAL_DARK = (142, 54, 49)
-YELLOW = (232, 184, 76)
-BLUE = (74, 121, 176)
+TEAL = (36, 129, 132)
+TEAL_DARK = (24, 73, 78)
+CORAL = (218, 91, 75)
+CORAL_DARK = (139, 54, 48)
+YELLOW = (235, 177, 47)
+BLUE = (65, 115, 158)
 GREEN = (73, 153, 106)
-MUTED = (173, 184, 190)
+MUTED = (176, 178, 166)
+THREAD = (232, 216, 177)
+PAPER_DARK = (203, 190, 163)
 SHADOW = (11, 17, 24, 170)
 
 CARD_COLORS = {
@@ -131,16 +142,90 @@ def draw_bar(surface: pygame.Surface, rect: pygame.Rect, value: int, maximum: in
     pygame.draw.rect(surface, (225, 228, 230), rect, 1, border_radius=4)
 
 
-@dataclass
-class FloatText:
-    text: str
-    position: pygame.Vector2
-    color: tuple[int, int, int]
-    lifetime: float = 1.0
+def load_optional_image(path: Path) -> pygame.Surface | None:
+    """Load an optional art asset without making the demo unbootable."""
+    if not path.exists():
+        return None
+    return pygame.image.load(str(path)).convert_alpha()
 
-    def update(self, dt: float) -> None:
-        self.lifetime -= dt
-        self.position.y -= 36 * dt
+
+def cover_scale(image: pygame.Surface, size: tuple[int, int]) -> pygame.Surface:
+    """Scale and center-crop an image to fill a fixed UI slot."""
+    target_w, target_h = size
+    scale = max(target_w / image.get_width(), target_h / image.get_height())
+    scaled = pygame.transform.smoothscale(
+        image,
+        (max(1, round(image.get_width() * scale)), max(1, round(image.get_height() * scale))),
+    )
+    crop = pygame.Rect(0, 0, target_w, target_h)
+    crop.center = scaled.get_rect().center
+    result = pygame.Surface(size, pygame.SRCALPHA)
+    result.blit(scaled, (0, 0), crop)
+    return result
+
+
+def draw_stitches(surface: pygame.Surface, rect: pygame.Rect, color=THREAD, inset: int = 7) -> None:
+    """Draw a simple dashed seam around a cloth panel."""
+    left, right = rect.left + inset, rect.right - inset
+    top, bottom = rect.top + inset, rect.bottom - inset
+    for x in range(left, right, 13):
+        pygame.draw.line(surface, color, (x, top), (min(x + 7, right), top), 1)
+        pygame.draw.line(surface, color, (x, bottom), (min(x + 7, right), bottom), 1)
+    for y in range(top, bottom, 13):
+        pygame.draw.line(surface, color, (left, y), (left, min(y + 7, bottom)), 1)
+        pygame.draw.line(surface, color, (right, y), (right, min(y + 7, bottom)), 1)
+
+
+def draw_cloth_panel(
+    surface: pygame.Surface,
+    rect: pygame.Rect,
+    fill,
+    border=INK,
+    *,
+    stitch=THREAD,
+    shadow: bool = True,
+) -> None:
+    """Draw a layered fabric patch inspired by the reference UI."""
+    if shadow:
+        pygame.draw.rect(surface, (10, 15, 18, 135), rect.move(5, 6), border_radius=4)
+    pygame.draw.rect(surface, border, rect.inflate(4, 4), border_radius=5)
+    pygame.draw.rect(surface, fill, rect, border_radius=4)
+    draw_stitches(surface, rect, stitch)
+
+
+def draw_paper_panel(surface: pygame.Surface, rect: pygame.Rect, fill=PAPER, border=PAPER_DARK) -> None:
+    """Draw a deterministic torn-paper silhouette."""
+    points = [
+        (rect.left + 8, rect.top),
+        (rect.right - 13, rect.top + 2),
+        (rect.right, rect.top + 9),
+        (rect.right - 3, rect.bottom - 7),
+        (rect.right - 12, rect.bottom),
+        (rect.left + 6, rect.bottom - 2),
+        (rect.left, rect.bottom - 11),
+        (rect.left + 3, rect.top + 7),
+    ]
+    pygame.draw.polygon(surface, (12, 17, 20, 120), [(x + 4, y + 5) for x, y in points])
+    pygame.draw.polygon(surface, fill, points)
+    pygame.draw.lines(surface, border, True, points, 2)
+
+
+def draw_heart(surface: pygame.Surface, center: tuple[int, int], color=CORAL, scale: int = 12) -> None:
+    x, y = center
+    pygame.draw.circle(surface, color, (x - scale // 2, y - scale // 3), scale // 2)
+    pygame.draw.circle(surface, color, (x + scale // 2, y - scale // 3), scale // 2)
+    pygame.draw.polygon(
+        surface,
+        color,
+        [(x - scale, y - scale // 3), (x + scale, y - scale // 3), (x, y + scale)],
+    )
+
+
+def draw_shield(surface: pygame.Surface, center: tuple[int, int], color=BLUE, scale: int = 13) -> None:
+    x, y = center
+    points = [(x, y - scale), (x + scale, y - scale // 2), (x + scale - 2, y + 5), (x, y + scale), (x - scale + 2, y + 5), (x - scale, y - scale // 2)]
+    pygame.draw.polygon(surface, color, points)
+    pygame.draw.lines(surface, PAPER, True, points, 2)
 
 
 class PygameCombatDemo:
@@ -153,16 +238,27 @@ class PygameCombatDemo:
         self.background = pygame.transform.smoothscale(
             pygame.image.load(str(BACKGROUND_PATH)).convert(), (WIDTH, HEIGHT)
         )
+        character_source = load_optional_image(CHARACTER_PATH)
+        self.character_art = (
+            pygame.transform.smoothscale(character_source, (350, 350))
+            if character_source is not None
+            else None
+        )
+        self.card_art = {
+            card_id: cover_scale(image, (128, 82))
+            for card_id, path in CARD_ART_PATHS.items()
+            if (image := load_optional_image(path)) is not None
+        }
         self.card_rects: list[tuple[Card, pygame.Rect]] = []
         self._material_slots: list[tuple[Card, int, object, pygame.Rect]] = []
-        self.enemy_rect = pygame.Rect(785, 155, 255, 245)
-        self.end_turn_rect = pygame.Rect(1090, 72, 152, 50)
+        self.enemy_rect = pygame.Rect(958, 151, 270, 270)
+        self.end_turn_rect = pygame.Rect(1044, 27, 187, 82)
         self.restart_rect = pygame.Rect(540, 405, 200, 54)
         self.selected_card: Card | None = None
         self.hovered_card: Card | None = None
         self.message = "选择一张牌"
-        self.float_texts: list[FloatText] = []
-        self.flash = 0.0
+        self.feedback = ""
+        self.feedback_color = PAPER
         self.reset_combat()
 
     def reset_combat(self) -> None:
@@ -185,8 +281,8 @@ class PygameCombatDemo:
         self.selected_card = None
         self.hovered_card = None
         self.message = "选择一张牌"
-        self.float_texts.clear()
-        self.flash = 0.0
+        self.feedback = ""
+        self.feedback_color = PAPER
 
     @property
     def enemy(self) -> Enemy:
@@ -207,17 +303,19 @@ class PygameCombatDemo:
         cards = self.combat.player.piles.pile(PileType.HAND).cards
         if not cards:
             return []
-        card_w, card_h = 144, 214
-        step = min(158, (1130 - card_w) / max(1, len(cards) - 1))
+        card_w, card_h = 156, 232
+        step = min(143, (930 - card_w) / max(1, len(cards) - 1))
         total_w = card_w + step * (len(cards) - 1)
         start_x = (WIDTH - total_w) / 2
         result = []
+        center_index = (len(cards) - 1) / 2
         for index, card in enumerate(cards):
-            rect = pygame.Rect(round(start_x + index * step), 493, card_w, card_h)
+            curve = round(abs(index - center_index) * 7)
+            rect = pygame.Rect(round(start_x + index * step), 468 + curve, card_w, card_h)
             if card is self.selected_card:
-                rect.y -= 28
+                rect.y -= 26
             elif mouse_pos is not None and rect.collidepoint(mouse_pos):
-                rect.y -= 14
+                rect.y -= 13
             result.append((card, rect))
         return result
 
@@ -250,12 +348,14 @@ class PygameCombatDemo:
         block = self.combat.player.block - old_block
         healing = self.combat.player.hp - old_hp
         if damage > 0:
-            self.float_texts.append(FloatText(f"-{damage}", pygame.Vector2(908, 195), CORAL))
-            self.flash = 0.16
-        if block > 0:
-            self.float_texts.append(FloatText(f"+{block} 格挡", pygame.Vector2(257, 343), BLUE))
-        if healing > 0:
-            self.float_texts.append(FloatText(f"+{healing}", pygame.Vector2(230, 298), GREEN))
+            self.feedback = f"敌人 -{damage} 生命"
+            self.feedback_color = CORAL
+        elif block > 0:
+            self.feedback = f"所依 +{block} 格挡"
+            self.feedback_color = BLUE
+        elif healing > 0:
+            self.feedback = f"所依 +{healing} 生命"
+            self.feedback_color = GREEN
         self.selected_card = None
         self.message = f"已打出：{card.title}"
         if self.enemy.is_dead():
@@ -270,8 +370,8 @@ class PygameCombatDemo:
         self.combat.end_player_turn()
         damage = old_hp - self.combat.player.hp
         if damage > 0:
-            self.float_texts.append(FloatText(f"-{damage}", pygame.Vector2(232, 292), CORAL))
-            self.flash = 0.14
+            self.feedback = f"所依 -{damage} 生命"
+            self.feedback_color = CORAL
         if self.combat.phase == "player":
             self.combat.next_enemy_intents()
             self.message = f"第 {self.combat.round_number} 回合"
@@ -292,106 +392,128 @@ class PygameCombatDemo:
             self.select_or_play(card)
 
     def update(self, dt: float) -> None:
-        self.flash = max(0.0, self.flash - dt)
-        for item in self.float_texts:
-            item.update(dt)
-        self.float_texts = [item for item in self.float_texts if item.lifetime > 0]
+        # 当前阶段使用纯静态 UI；保留 update 接口便于后续课程迭代动画。
+        del dt
 
     def draw_background(self) -> None:
         self.canvas.blit(self.background, (0, 0))
         shade = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-        shade.fill((12, 20, 28, 42))
-        pygame.draw.rect(shade, (9, 14, 20, 170), (0, 455, WIDTH, 265))
+        shade.fill((10, 18, 22, 66))
+        pygame.draw.rect(shade, (8, 13, 16, 188), (0, 452, WIDTH, 268))
+        pygame.draw.line(shade, (222, 204, 163, 110), (0, 460), (WIDTH, 460), 4)
         self.canvas.blit(shade, (0, 0))
 
     def draw_header(self) -> None:
-        draw_panel(self.canvas, pygame.Rect(32, 24, 1216, 112), (22, 30, 36, 226), (104, 136, 142))
-        draw_text(self.canvas, "SOYOI", 30, WHITE, (58, 44), bold=True)
-        draw_text(self.canvas, "酱油部作战", 16, (171, 216, 216), (59, 84))
-        draw_text(self.canvas, f"回合 {self.combat.round_number}", 18, PAPER, (265, 49), bold=True)
-        draw_text(self.canvas, self.message, 17, YELLOW, (265, 82))
+        player = self.combat.player
+
+        energy_patch = pygame.Rect(29, 26, 207, 82)
+        draw_cloth_panel(self.canvas, energy_patch, TEAL_DARK, (17, 43, 47), stitch=(185, 224, 219))
+        pygame.draw.circle(self.canvas, YELLOW, (70, 67), 26)
+        pygame.draw.polygon(self.canvas, INK, [(66, 48), (79, 48), (72, 63), (81, 63), (61, 88), (67, 69), (58, 69)])
+        draw_text(self.canvas, f"{player.energy}/3", 28, PAPER, (112, 47), bold=True)
+        draw_text(self.canvas, f"回合 {self.combat.round_number}", 14, (181, 220, 216), (113, 80))
+
+        order = pygame.Rect(292, 25, 684, 84)
+        draw_paper_panel(self.canvas, order)
+        pygame.draw.circle(self.canvas, INK, (327, 66), 7, 2)
+        pygame.draw.line(self.canvas, INK, (327, 47), (327, 85), 2)
+        pygame.draw.line(self.canvas, INK, (308, 66), (346, 66), 2)
+        draw_text(self.canvas, "酱油部作战", 15, TEAL_DARK, (360, 42), bold=True)
+        draw_text(self.canvas, self.message, 20, INK, (360, 64), bold=True)
+        if self.feedback:
+            draw_text(self.canvas, self.feedback, 14, self.feedback_color, (929, 88), bold=True, anchor="bottomright")
 
         button_color = CORAL if self.end_turn_rect.collidepoint(self.current_mouse()) else CORAL_DARK
-        pygame.draw.rect(self.canvas, button_color, self.end_turn_rect, border_radius=6)
-        pygame.draw.rect(self.canvas, (255, 187, 174), self.end_turn_rect, 1, border_radius=6)
-        draw_text(self.canvas, "结束回合", 19, WHITE, self.end_turn_rect.center, bold=True, anchor="center")
+        draw_cloth_panel(self.canvas, self.end_turn_rect, button_color, (92, 34, 31), stitch=(255, 201, 178))
+        pygame.draw.circle(self.canvas, PAPER, (1080, 68), 21, 3)
+        pygame.draw.line(self.canvas, PAPER, (1068, 68), (1077, 77), 4)
+        pygame.draw.line(self.canvas, PAPER, (1077, 77), (1092, 57), 4)
+        draw_text(self.canvas, "结束回合", 19, PAPER, (1156, 67), bold=True, anchor="center")
 
     def draw_player(self) -> None:
-        panel = pygame.Rect(48, 164, 310, 238)
-        draw_panel(self.canvas, panel, (21, 31, 38, 225), (86, 157, 162))
-        pygame.draw.circle(self.canvas, (217, 237, 234), (116, 232), 46)
-        pygame.draw.circle(self.canvas, TEAL_DARK, (116, 232), 45, 3)
-        pygame.draw.circle(self.canvas, (57, 74, 82), (116, 220), 25)
-        pygame.draw.arc(self.canvas, (57, 74, 82), (80, 210, 72, 76), 0, 3.14, 26)
-        draw_text(self.canvas, "所依", 25, WHITE, (184, 185), bold=True)
-        draw_text(self.canvas, "酱油部", 15, (174, 207, 207), (185, 220))
-
         player = self.combat.player
-        hp_rect = pygame.Rect(78, 300, 245, 20)
-        draw_bar(self.canvas, hp_rect, player.hp, player.max_hp, CORAL)
-        draw_text(self.canvas, f"生命 {player.hp}/{player.max_hp}", 15, WHITE, hp_rect.center, bold=True, anchor="center")
-        pygame.draw.rect(self.canvas, BLUE, (78, 335, 116, 42), border_radius=6)
-        draw_text(self.canvas, f"格挡 {player.block}", 17, WHITE, (136, 356), bold=True, anchor="center")
-        pygame.draw.circle(self.canvas, YELLOW, (269, 356), 25)
-        draw_text(self.canvas, str(player.energy), 22, INK, (269, 355), bold=True, anchor="center")
-        draw_text(self.canvas, "能量", 13, PAPER, (304, 349), anchor="midleft")
 
-        # 状态显示：头像右侧、酱油部下边（血条上方）区域
-        self.draw_statuses(player, 178, 244, max_width=190, line_height=20)
+        if self.character_art is not None:
+            self.canvas.blit(self.character_art, (210, 112))
+        else:
+            pygame.draw.circle(self.canvas, PAPER, (350, 255), 75)
+            draw_text(self.canvas, "所依", 28, INK, (350, 255), bold=True, anchor="center")
+
+        name_patch = pygame.Rect(38, 154, 202, 58)
+        draw_cloth_panel(self.canvas, name_patch, TEAL, (16, 62, 65), stitch=(189, 226, 217))
+        draw_text(self.canvas, "所依", 25, PAPER, (60, 167), bold=True)
+        draw_text(self.canvas, "酱油部", 13, (194, 231, 224), (176, 184), anchor="center")
+
+        stat_paper = pygame.Rect(38, 220, 218, 170)
+        draw_paper_panel(self.canvas, stat_paper)
+        draw_heart(self.canvas, (66, 259), CORAL, 13)
+        hp_rect = pygame.Rect(88, 247, 145, 23)
+        draw_bar(self.canvas, hp_rect, player.hp, player.max_hp, CORAL)
+        draw_text(self.canvas, f"{player.hp}/{player.max_hp}", 14, WHITE, hp_rect.center, bold=True, anchor="center")
+
+        pygame.draw.line(self.canvas, PAPER_DARK, (58, 291), (235, 291), 2)
+        draw_shield(self.canvas, (67, 319), BLUE, 13)
+        draw_text(self.canvas, "格挡", 15, INK, (91, 309), bold=True)
+        draw_text(self.canvas, str(player.block), 20, BLUE, (224, 307), bold=True, anchor="topright")
+
+        pygame.draw.line(self.canvas, PAPER_DARK, (58, 345), (235, 345), 2)
+        draw_text(self.canvas, "状态", 13, TEAL_DARK, (60, 357), bold=True)
+        self.draw_statuses(player, 106, 353, max_width=126, line_height=20)
 
     def draw_enemy(self) -> None:
         target = self.enemy_rect
         selected = self.selected_card is not None
         if selected:
             glow = pygame.Surface((target.width + 24, target.height + 24), pygame.SRCALPHA)
-            pygame.draw.rect(glow, (238, 184, 76, 60), glow.get_rect(), border_radius=8)
+            pygame.draw.rect(glow, (238, 184, 76, 90), glow.get_rect(), border_radius=6)
             self.canvas.blit(glow, (target.x - 12, target.y - 12))
 
-        # 由简单几何图形组成的废料怪，保持课程项目可自行修改。
-        pygame.draw.ellipse(self.canvas, (10, 16, 20, 110), (792, 347, 240, 42))
-        pygame.draw.rect(self.canvas, (106, 77, 62), (825, 222, 168, 132), border_radius=6)
-        pygame.draw.rect(self.canvas, (173, 125, 78), (842, 190, 132, 70), border_radius=5)
-        pygame.draw.line(self.canvas, (237, 190, 82), (858, 190), (885, 260), 8)
-        pygame.draw.line(self.canvas, (237, 190, 82), (960, 190), (932, 260), 8)
-        pygame.draw.circle(self.canvas, (246, 239, 214), (878, 228), 13)
-        pygame.draw.circle(self.canvas, (246, 239, 214), (938, 228), 13)
-        pygame.draw.circle(self.canvas, INK, (878, 228), 5)
-        pygame.draw.circle(self.canvas, INK, (938, 228), 5)
-        pygame.draw.line(self.canvas, INK, (883, 292), (936, 292), 5)
-        pygame.draw.line(self.canvas, (128, 161, 164), (825, 285), (992, 285), 3)
+        draw_cloth_panel(self.canvas, target, TEAL_DARK, (13, 46, 50), stitch=(224, 186, 88))
+        draw_text(self.canvas, self.enemy.name, 22, PAPER, (target.centerx, 168), bold=True, anchor="center")
 
-        if self.flash > 0:
-            overlay = pygame.Surface(target.size, pygame.SRCALPHA)
-            overlay.fill((255, 236, 210, int(150 * self.flash / 0.16)))
-            self.canvas.blit(overlay, target)
+        # 原创的纸箱废料怪，只保留课程 Demo 所需的敌人占位表现。
+        pygame.draw.ellipse(self.canvas, (10, 16, 20, 115), (984, 338, 216, 32))
+        pygame.draw.rect(self.canvas, (99, 75, 65), (1000, 250, 188, 105), border_radius=5)
+        pygame.draw.rect(self.canvas, (172, 119, 75), (1016, 212, 156, 73), border_radius=4)
+        pygame.draw.line(self.canvas, YELLOW, (1034, 213), (1053, 282), 8)
+        pygame.draw.line(self.canvas, YELLOW, (1154, 213), (1134, 282), 8)
+        pygame.draw.circle(self.canvas, PAPER, (1052, 247), 13)
+        pygame.draw.circle(self.canvas, PAPER, (1135, 247), 13)
+        pygame.draw.circle(self.canvas, INK, (1052, 247), 5)
+        pygame.draw.circle(self.canvas, INK, (1135, 247), 5)
+        pygame.draw.line(self.canvas, INK, (1065, 315), (1123, 315), 5)
 
-        draw_text(self.canvas, self.enemy.name, 23, WHITE, (target.centerx, 145), bold=True, anchor="midbottom")
-        hp_rect = pygame.Rect(805, 374, 210, 20)
+        hp_rect = pygame.Rect(986, 377, 214, 22)
         draw_bar(self.canvas, hp_rect, self.enemy.hp, self.enemy.max_hp, CORAL)
         draw_text(self.canvas, f"{self.enemy.hp}/{self.enemy.max_hp}", 14, WHITE, hp_rect.center, bold=True, anchor="center")
 
-        # 状态显示：怪物血条下方
-        px = target.centerx - 100
-        self.draw_statuses(self.enemy, px, 402, max_width=200, line_height=20)
+        self.draw_statuses(self.enemy, 987, 405, max_width=210, line_height=20)
 
-        intent_rect = pygame.Rect(1048, 172, 170, 72)
-        draw_panel(self.canvas, intent_rect, (26, 36, 42, 225), (173, 190, 191))
-        draw_text(self.canvas, "下一步", 13, MUTED, (intent_rect.centerx, 183), anchor="midtop")
-        draw_text(self.canvas, self.enemy.intent.text, 18, YELLOW, (intent_rect.centerx, 216), bold=True, anchor="center")
+        intent_rect = pygame.Rect(792, 178, 145, 83)
+        draw_paper_panel(self.canvas, intent_rect, (223, 211, 183), (132, 113, 82))
+        draw_text(self.canvas, "敌方意图", 13, TEAL_DARK, (intent_rect.centerx, 190), bold=True, anchor="midtop")
+        draw_text(self.canvas, self.enemy.intent.text, 19, CORAL_DARK, (intent_rect.centerx, 231), bold=True, anchor="center")
+        pygame.draw.line(self.canvas, PAPER, (937, 220), (958, 220), 4)
 
     def draw_piles(self) -> None:
         piles = self.combat.player.piles
         items = [
-            ("抽牌", len(piles.pile(PileType.DRAW).cards), 35),
-            ("弃牌", len(piles.pile(PileType.DISCARD).cards), 1127),
-            ("消耗", len(piles.pile(PileType.EXHAUST).cards), 1192),
+            ("抽牌", len(piles.pile(PileType.DRAW).cards), pygame.Rect(30, 522, 78, 112), TEAL_DARK),
+            ("弃牌", len(piles.pile(PileType.DISCARD).cards), pygame.Rect(1171, 504, 76, 104), CORAL_DARK),
+            ("消耗", len(piles.pile(PileType.EXHAUST).cards), pygame.Rect(1171, 615, 76, 84), (65, 67, 69)),
         ]
-        for label, count, x in items:
-            rect = pygame.Rect(x, 637, 56, 62)
-            pygame.draw.rect(self.canvas, (31, 42, 49), rect, border_radius=5)
-            pygame.draw.rect(self.canvas, (142, 159, 164), rect, 1, border_radius=5)
-            draw_text(self.canvas, str(count), 20, WHITE, (rect.centerx, rect.y + 20), bold=True, anchor="center")
-            draw_text(self.canvas, label, 12, MUTED, (rect.centerx, rect.bottom - 12), anchor="center")
+        for label, count, rect, color in items:
+            for offset in (8, 4):
+                pygame.draw.rect(self.canvas, INK, rect.move(offset, -offset), border_radius=4)
+                pygame.draw.rect(self.canvas, PAPER_DARK, rect.move(offset, -offset), 1, border_radius=4)
+            draw_cloth_panel(self.canvas, rect, color, (13, 34, 36), stitch=THREAD, shadow=False)
+            cx, cy = rect.centerx, rect.centery - 10
+            pygame.draw.polygon(self.canvas, PAPER, [(cx, cy - 17), (cx + 17, cy), (cx, cy + 17), (cx - 17, cy)])
+            pygame.draw.polygon(self.canvas, color, [(cx, cy - 8), (cx + 8, cy), (cx, cy + 8), (cx - 8, cy)])
+            count_rect = pygame.Rect(rect.right - 18, rect.bottom - 20, 36, 30)
+            pygame.draw.circle(self.canvas, INK, count_rect.center, 18)
+            draw_text(self.canvas, str(count), 18, PAPER, count_rect.center, bold=True, anchor="center")
+            draw_text(self.canvas, label, 12, PAPER, (rect.centerx, rect.bottom - 19), bold=True, anchor="center")
 
     def draw_statuses(self, creature: Creature, x: int, y: int, *, max_width: int = 280, align: str = "left", line_height: int = 22) -> None:
         """渲染一个生物当前持有的状态（力量/易伤/虚弱等）为一行小胶囊。
@@ -467,31 +589,55 @@ class PygameCombatDemo:
 
     def draw_card(self, card: Card, rect: pygame.Rect, hovered: bool) -> None:
         color = CARD_COLORS[card.card_type]
-        shadow = rect.move(5, 7)
-        pygame.draw.rect(self.canvas, (8, 12, 16), shadow, border_radius=7)
-        pygame.draw.rect(self.canvas, PAPER, rect, border_radius=7)
-        pygame.draw.rect(self.canvas, color, (rect.x, rect.y, rect.width, 47), border_top_left_radius=7, border_top_right_radius=7)
-        pygame.draw.rect(self.canvas, YELLOW if card is self.selected_card else color, rect, 3 if hovered or card is self.selected_card else 2, border_radius=7)
+        shadow = rect.move(6, 7)
+        pygame.draw.rect(self.canvas, (7, 11, 13), shadow, border_radius=5)
+        pygame.draw.rect(self.canvas, INK, rect.inflate(6, 6), border_radius=6)
+        pygame.draw.rect(self.canvas, color, rect, border_radius=4)
+        draw_stitches(self.canvas, rect, (231, 210, 168), inset=6)
 
-        pygame.draw.circle(self.canvas, (251, 211, 93), (rect.x + 22, rect.y + 22), 17)
-        draw_text(self.canvas, str(card.cost), 18, INK, (rect.x + 22, rect.y + 21), bold=True, anchor="center")
-        draw_text(self.canvas, card.title, 17, WHITE, (rect.centerx + 8, rect.y + 23), bold=True, anchor="center")
+        body = pygame.Rect(rect.x + 9, rect.y + 34, rect.width - 18, rect.height - 44)
+        pygame.draw.rect(self.canvas, PAPER, body, border_radius=3)
+        pygame.draw.rect(self.canvas, PAPER_DARK, body, 2, border_radius=3)
+
+        title_strip = pygame.Rect(rect.x + 28, rect.y + 7, rect.width - 36, 34)
+        draw_paper_panel(self.canvas, title_strip, (244, 234, 211), PAPER_DARK)
+        draw_text(self.canvas, card.title, 15, INK, (title_strip.centerx + 4, title_strip.centery), bold=True, anchor="center")
+
+        pygame.draw.circle(self.canvas, YELLOW, (rect.x + 23, rect.y + 22), 19)
+        pygame.draw.circle(self.canvas, (111, 74, 27), (rect.x + 23, rect.y + 22), 19, 2)
+        draw_text(self.canvas, str(card.cost), 18, INK, (rect.x + 23, rect.y + 21), bold=True, anchor="center")
+
+        art_rect = pygame.Rect(rect.x + 14, rect.y + 46, rect.width - 28, 82)
+        art = self.card_art.get(card.card_id)
+        if art is not None:
+            self.canvas.blit(art, art_rect)
+        else:
+            pygame.draw.rect(self.canvas, TEAL_DARK, art_rect)
+            pygame.draw.line(self.canvas, THREAD, art_rect.topleft, art_rect.bottomright, 3)
+            pygame.draw.line(self.canvas, THREAD, art_rect.topright, art_rect.bottomleft, 3)
+        pygame.draw.rect(self.canvas, INK, art_rect, 2)
 
         type_label = {CardType.ATTACK: "攻击", CardType.SKILL: "技能", CardType.POWER: "能力"}[card.card_type]
-        draw_text(self.canvas, type_label, 12, color, (rect.centerx, rect.y + 61), bold=True, anchor="center")
-        for line_no, line in enumerate(wrap_text(card.text, rect.width - 20, 14, 4)):
-            draw_text(self.canvas, line, 14, INK, (rect.x + 10, rect.y + 82 + line_no * 21))
+        type_chip = pygame.Rect(rect.centerx - 27, rect.y + 120, 54, 22)
+        pygame.draw.rect(self.canvas, (246, 238, 220), type_chip, border_radius=4)
+        pygame.draw.rect(self.canvas, color, type_chip, 1, border_radius=4)
+        draw_text(self.canvas, type_label, 12, color, type_chip.center, bold=True, anchor="center")
+        text_lines = wrap_text(card.text, rect.width - 30, 13, 3)
+        for line_no, line in enumerate(text_lines):
+            draw_text(self.canvas, line, 13, INK, (rect.x + 15, rect.y + 148 + line_no * 18))
 
         loadout = get_loadout(card)
         for slot in range(3):
-            center = (rect.x + 48 + slot * 25, rect.bottom - 20)
+            center = (rect.x + 49 + slot * 29, rect.bottom - 18)
             bundle = loadout.slots[slot]
             if bundle is None:
-                pygame.draw.circle(self.canvas, (178, 184, 183), center, 8, 2)
+                slot_box = pygame.Rect(center[0] - 10, center[1] - 10, 20, 20)
+                pygame.draw.rect(self.canvas, (222, 214, 197), slot_box, border_radius=4)
+                pygame.draw.rect(self.canvas, (151, 148, 139), slot_box, 1, border_radius=4)
             else:
                 material_id = bundle.components[0].card_id
-                pygame.draw.circle(self.canvas, MATERIAL_COLORS.get(material_id, TEAL), center, 9)
-                pygame.draw.circle(self.canvas, INK, center, 9, 1)
+                pygame.draw.rect(self.canvas, MATERIAL_COLORS.get(material_id, TEAL), (center[0] - 10, center[1] - 10, 20, 20), border_radius=4)
+                pygame.draw.rect(self.canvas, INK, (center[0] - 10, center[1] - 10, 20, 20), 1, border_radius=4)
                 # 记录素材槽的可悬停区域（供 material tooltip 使用）
                 slot_rect = pygame.Rect(center[0] - 10, center[1] - 10, 20, 20)
                 self._material_slots.append((card, slot, bundle, slot_rect))
@@ -507,14 +653,21 @@ class PygameCombatDemo:
                     if text:
                         effects.append(text)
             if effects:
-                y_pos = rect.y + 82 + len(wrap_text(card.text, rect.width - 20, 14, 4)) * 21 + 6
-                for line in wrap_text("◆ " + "；".join(effects), rect.width - 20, 13, 3):
-                    draw_text(self.canvas, line, 13, (176, 129, 45), (rect.x + 10, y_pos), anchor="midleft")
-                    y_pos += 18
+                y_pos = rect.y + 148 + len(text_lines) * 18 + 3
+                for line in wrap_text("◆ " + "；".join(effects), rect.width - 30, 12, 2):
+                    draw_text(self.canvas, line, 12, (151, 105, 30), (rect.x + 15, y_pos))
+                    y_pos += 16
 
         rarity_marks = {CardRarity.BASIC: 0, CardRarity.COMMON: 1, CardRarity.UNCOMMON: 2, CardRarity.RARE: 3}.get(card.rarity, 0)
         for index in range(rarity_marks):
-            pygame.draw.circle(self.canvas, YELLOW, (rect.right - 12 - index * 10, rect.bottom - 12), 3)
+            pygame.draw.polygon(
+                self.canvas,
+                YELLOW,
+                [(rect.right - 13 - index * 9, rect.bottom - 25), (rect.right - 9 - index * 9, rect.bottom - 21), (rect.right - 13 - index * 9, rect.bottom - 17), (rect.right - 17 - index * 9, rect.bottom - 21)],
+            )
+
+        if hovered or card is self.selected_card:
+            pygame.draw.rect(self.canvas, YELLOW, rect.inflate(4, 4), 3, border_radius=6)
 
     def draw_hand(self) -> None:
         mouse = self.current_mouse()
@@ -524,13 +677,6 @@ class PygameCombatDemo:
             self.draw_card(card, rect, rect.collidepoint(mouse))
         # 鼠标悬停在素材槽上时，绘制素材效果 tooltip
         self.draw_material_tooltip(mouse)
-
-    def draw_float_texts(self) -> None:
-        for item in self.float_texts:
-            alpha = max(0, min(255, round(255 * item.lifetime)))
-            image = font(24, True).render(item.text, True, item.color)
-            image.set_alpha(alpha)
-            self.canvas.blit(image, image.get_rect(center=(round(item.position.x), round(item.position.y))))
 
     def draw_overlay(self) -> None:
         if self.combat.phase not in ("victory", "defeat"):
@@ -556,7 +702,6 @@ class PygameCombatDemo:
         self.draw_enemy()
         self.draw_piles()
         self.draw_hand()
-        self.draw_float_texts()
         self.draw_overlay()
 
     def present(self) -> None:
