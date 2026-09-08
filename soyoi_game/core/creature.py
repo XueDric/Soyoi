@@ -81,3 +81,10 @@ class Creature:
             self.powers[Powers.TEMP_STRENGTH].amount = 0
         if self.has_power(Powers.VIGOR):
             self.powers[Powers.VIGOR].amount = 0
+
+        # 易伤/虚弱：每回合结束各减1层，避免永久累积（类尖塔标准行为）。
+        # add_power 内部用 max(0, ...) 保证不会减到负数；减到 0 即清空该状态。
+        if self.has_power(Powers.VULNERABLE):
+            self.add_power(Powers.VULNERABLE, -1)
+        if self.has_power(Powers.WEAK):
+            self.add_power(Powers.WEAK, -1)
