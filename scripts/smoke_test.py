@@ -22,6 +22,7 @@ from soyoi_game.ui.__main__ import make_player, make_enemy
 
 def test_basic_combat():
     p = make_player()
+    p.piles.rng.seed(2026)
     e = make_enemy()
     combat = CombatState(player=p, enemies=[e])
     combat.next_enemy_intents()
@@ -58,6 +59,8 @@ def test_material_attach_and_resolve():
     assert get_loadout(carrier).material_count == 1, "素材未附着"
 
     combat.start_combat()
+    # 测试指定实例时显式移入手牌，不再依赖绕过合法性检查。
+    p.piles.put_in_hand(carrier, p.hand_limit)
     hp_before = e.hp
     combat.play_card(carrier, e)
     # 打击6 + 素材3 = 9

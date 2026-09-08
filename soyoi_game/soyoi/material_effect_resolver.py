@@ -38,8 +38,9 @@ class MaterialEffectResolver:
 
     def __init__(self, combat: "CombatState") -> None:
         self.combat = combat
-        # 每回合已触发过的 (卡片id, offset) 集合，简化 once_per_turn 实现
-        self._used_this_round: set[str] = set()
+        self._used_this_round: set[tuple] = set()
+        self._used_this_combat: set[tuple] = set()
+        self._round_number: int | None = None
 
     def resolve_after_carrier_played(self, carrier: "Card", carrier_target: Optional[Creature] = None) -> None:
         """承载牌打出后结算全部素材效果。"""
@@ -47,9 +48,14 @@ class MaterialEffectResolver:
             return
         loadout = get_loadout(carrier)
         round_no = self.combat.round_number
+        if round_no != self._round_number:
+            self._used_this_round.clear()
+            self._round_number = round_no
 
         # 按槽号结算（C# 支持反向，这里默认正向）
         for slot in range(len(loadout.slots)):
+            if self.combat.player.is_dead():
+                break
             bundle = loadout.slots[slot]
             if bundle is None:
                 continue
@@ -68,20 +74,21 @@ class MaterialEffectResolver:
         survivors: list = []
         for component in bundle.components:
             consumed = False
-            for effect in component.material_effects:
+            for effect_index, effect in enumerate(component.material_effects):
+                if self.combat.player.is_dead():
+                    break
                 timing = effect.timing
                 if timing not in (MaterialEffectTiming.AFTER_CARRIER_PLAYED, MaterialEffectTiming.FIRST_CARRIER_PLAY_EACH_COMBAT):
                     continue
-                # once_per_turn 检查
+                # 使用实例引用而不是裸 id，避免被消耗对象的 id 被后续对象复用。
+                key = (carrier, component, effect_index)
+                if timing == MaterialEffectTiming.FIRST_CARRIER_PLAY_EACH_COMBAT:
+                    if key in self._used_this_combat:
+                        continue
+                    self._used_this_combat.add(key)
                 if effect.once_per_turn:
-                    key = (id(carrier), slot, id(effect))
                     if key in self._used_this_round:
                         continue
-                    if timing == MaterialEffectTiming.FIRST_CARRIER_PLAY_EACH_COMBAT:
-                        # 每场战斗一次，简化：用 id(carrier)+effect 做 key，跨回合保留
-                        key = ("combat_once", id(carrier), id(effect))
-                        if key in self._used_this_round:
-                            continue
                     self._used_this_round.add(key)
                 self._resolve_immediate(carrier, carrier_target, component, effect)
                 if effect.consumes_component:
@@ -116,7 +123,7 @@ class MaterialEffectResolver:
         if op == MaterialEffectOperation.MATERIAL_DAMAGE:
             for t in targets:
                 for _ in range(effect.hits):
-                    if t.is_dead():
+                    if t.is_dead() or owner.is_dead():
                         break
                     dmg = compute_attack_damage(effect.amount, owner, t)
                     t.take_attack(dmg, owner)
@@ -150,6 +157,7 @@ class MaterialEffectResolver:
                     rarity=CardRarity.TOKEN, target=TargetType.NONE,
                     base_text="不可打出。", upgraded_text="不可打出。",
                     base_keywords=[CardKeyword.UNPLAYABLE],
+                    upgraded_keywords=[CardKeyword.UNPLAYABLE],
                 )
                 owner.piles.move_to_discard(wound)
         elif op == MaterialEffectOperation.PUT_OTHER_NON_MATERIAL_FROM_DISCARD_ON_DRAW_PILE:
@@ -162,7 +170,7 @@ class MaterialEffectResolver:
             return [self.combat.player]
         if target == MaterialEffectTarget.CARRIER:
             return []
-        # INHERITED：按承载牌目标类型
+        # INHERITED 是游戏规则：自身技能牌上的攻击/减益素材也作用于玩家。
         base = carrier.target
         if base in (TargetType.NONE, TargetType.SELF, TargetType.TARGETED_NO_CREATURE):
             return [self.combat.player]
@@ -172,27 +180,9 @@ class MaterialEffectResolver:
         return [carrier_target or self.combat.get_target() or self.combat.player]
 
     def _sync_persistent(self, carrier: "Card", loadout) -> None:
-        """同步常驻效果：加费 / 保留。对应 C# SynchronizePersistentEffects。"""
-        cost_increase = 0
-        has_retain = False
-        for bundle in loadout.slots:
-            if bundle is None:
-                continue
-            for component in bundle.components:
-                for effect in component.material_effects:
-                    if effect.timing != MaterialEffectTiming.PERSISTENT:
-                        continue
-                    if effect.operation == MaterialEffectOperation.INCREASE_CARRIER_COST:
-                        cost_increase += int(effect.amount)
-                    elif effect.operation == MaterialEffectOperation.GRANT_RETAIN:
-                        has_retain = True
-        # 应用到卡牌：用 cost_modifiers["material"] 表示常驻加费
-        key = "material"
-        base = 0
-        # 计算上一轮已应用的加费，差值更新
-        existing = carrier.cost_modifiers.get(key, 0)
-        carrier.cost_modifiers[key] = cost_increase
-        carrier.retained_this_turn = has_retain or carrier.retained_this_turn
+        """同步常驻效果，与临时保留/临时费用分开。"""
+        from .persistent import sync_persistent_materials
+        sync_persistent_materials(carrier)
 
     def _put_other_non_material_from_discard_to_draw(self, carrier: "Card") -> None:
         """从弃牌堆选一张非素材牌放到抽牌堆顶。简化：取第一张符合条件的。"""
@@ -200,6 +190,5 @@ class MaterialEffectResolver:
         discard = self.combat.player.piles.pile(PileType.DISCARD)
         for card in list(discard.cards):
             if card is not carrier and not getattr(card, "is_material", False):
-                discard.remove(card)
-                self.combat.player.piles.pile(PileType.DRAW).add(card, index=0)
+                self.combat.player.piles.move(card, PileType.DRAW)
                 break

@@ -6,7 +6,7 @@ import random
 
 from soyoi_game.content.character import STRIKE_SPEC, setup_soyoi_combat
 from soyoi_game.content.soyoi_cards import PLAYABLE_REWARD_CARDS
-from soyoi_game.core.cards import PileType
+from soyoi_game.core.cards import PileType, TargetType
 from soyoi_game.core.combat import CombatState
 from soyoi_game.core.enemy import Enemy
 from soyoi_game.core.player import Player
@@ -22,9 +22,10 @@ def run_card(spec) -> str:
     enemy = Enemy(name="测试木桩", max_hp=999)
     combat = CombatState(player=player, enemies=[enemy], rng=random.Random(7))
     combat.round_number = 1
+    combat.phase = "player"
     setup_soyoi_combat(combat)
 
-    combat.play_card(card, enemy)
+    combat.play_card(card, player if card.target == TargetType.SELF else enemy)
 
     powers = ",".join(f"{name}:{value.amount}" for name, value in player.powers.items() if value.amount) or "无"
     enemy_powers = ",".join(f"{name}:{value.amount}" for name, value in enemy.powers.items() if value.amount) or "无"

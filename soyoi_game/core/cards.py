@@ -57,7 +57,7 @@ class CardKeyword(IntEnum):
     ETHEREAL = 5   # 虚影：回合结束消失
 
 
-@dataclass
+@dataclass(eq=False)
 class Card:
     """一张卡牌实例（每张实例独立，可携带升级状态与素材）。
 
@@ -87,6 +87,9 @@ class Card:
     cost_modifiers: dict[str, int] = field(default_factory=dict)
     # 本回合是否保留（Retain）
     retained_this_turn: bool = False
+    # 常驻素材状态与本回合临时状态分开，换料时重新同步。
+    material_retain: bool = False
+    material_cost_modifier: int = 0
 
     # --- 动态卡面变量（MaterialCount / MaterialLimit / MaterialScaled 等）---
     # 见 RedesignedCardRuntime 与 DynamicVar。key -> 当前值
@@ -101,7 +104,7 @@ class Card:
     def cost(self) -> int:
         """当前费用 = 基础/升级费用 + 临时修正。"""
         base = self.upgraded_cost if self.upgraded else self.base_cost
-        return max(0, base + sum(self.cost_modifiers.values()))
+        return max(0, base + self.material_cost_modifier + sum(self.cost_modifiers.values()))
 
     @property
     def keywords(self) -> list[CardKeyword]:
