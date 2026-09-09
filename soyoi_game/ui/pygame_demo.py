@@ -269,9 +269,9 @@ class PygameCombatDemo:
         player = Player(name=character.name, max_hp=character.starting_hp, deck=deck)
         player.piles.rng.seed(2026)
         pattern = [
-            Intent(IntentAction.ATTACK, 7, label="敲击 7"),
-            Intent(IntentAction.DEFEND, 6, label="加固 6"),
-            Intent(IntentAction.ATTACK, 5, hits=2, label="连击 5×2"),
+            Intent(IntentAction.ATTACK, 7),
+            Intent(IntentAction.DEFEND, 6),
+            Intent(IntentAction.ATTACK, 5, hits=2),
         ]
         enemy = Enemy(name="废料怪", max_hp=86, act_pattern=pattern, intent=pattern[0])
         self.combat = CombatState(player=player, enemies=[enemy], rng=random.Random(2026))

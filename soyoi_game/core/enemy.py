@@ -46,7 +46,7 @@ class Intent:
         }[self.action]
         if self.action == IntentAction.ATTACK and self.hits > 1:
             return f"{action_name} {self.amount} ×{self.hits}"
-        if self.action == IntentAction.ATTACK:
+        if self.action in (IntentAction.ATTACK, IntentAction.DEFEND):
             return f"{action_name} {self.amount}"
         return action_name
 
