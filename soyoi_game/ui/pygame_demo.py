@@ -20,7 +20,7 @@ from ..core.combat import CombatState
 from ..core.creature import Creature
 from ..core.enemy import Enemy, Intent, IntentAction
 from ..core.player import Player
-from ..soyoi.card import get_loadout
+from ..soyoi.card import can_carry_materials, get_loadout
 
 
 WIDTH = 1280
@@ -326,8 +326,12 @@ class PygameCombatDemo:
         return None
 
     def select_or_play(self, card: Card) -> None:
-        if card.cost > self.combat.player.energy:
-            self.message = f"能量不足：需要 {card.cost} 点"
+        target = self.enemy if card.target in (TargetType.ANY_ENEMY, TargetType.ALL_ENEMIES) else self.combat.player
+        try:
+            self.combat.validate_card_play(card, target)
+        except ValueError as exc:
+            self.selected_card = None
+            self.message = str(exc)
             return
         if card.target in (TargetType.ANY_ENEMY, TargetType.ALL_ENEMIES):
             self.selected_card = None if self.selected_card is card else card
@@ -358,9 +362,10 @@ class PygameCombatDemo:
             self.feedback_color = GREEN
         self.selected_card = None
         self.message = f"已打出：{card.title}"
-        if self.enemy.is_dead():
-            self.combat.phase = "victory"
+        if self.combat.phase == "victory":
             self.message = "制作完成"
+        elif self.combat.phase == "defeat":
+            self.message = "本次返工失败"
 
     def end_turn(self) -> None:
         if self.combat.phase != "player":
@@ -521,8 +526,8 @@ class PygameCombatDemo:
         align="left" 从左往右排，align="center" 居中排。返回绘制到的 y。
         """
         powers = getattr(creature, "powers", {})
-        # 只显示层数 > 0 的状态，按固定的 STATUS_STYLE 顺序
-        active = [(k, v.amount) for k, v in powers.items() if getattr(v, "amount", 0) > 0]
+        # 负力量等也需要显示，避免实际伤害与界面状态不符。
+        active = [(k, v.amount) for k, v in powers.items() if getattr(v, "amount", 0) != 0]
         if not active:
             return y
         # 按 key 排序，保证稳定展示顺序
@@ -626,6 +631,9 @@ class PygameCombatDemo:
         for line_no, line in enumerate(text_lines):
             draw_text(self.canvas, line, 13, INK, (rect.x + 15, rect.y + 148 + line_no * 18))
 
+        # 素材 Token 可以在手牌中展示，但不能再承载素材。
+        if not can_carry_materials(card):
+            return
         loadout = get_loadout(card)
         for slot in range(3):
             center = (rect.x + 49 + slot * 29, rect.bottom - 18)

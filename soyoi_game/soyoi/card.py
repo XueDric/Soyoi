@@ -44,7 +44,7 @@ IMPLEMENTED_MATERIAL_OPERATIONS = {
 }
 
 
-@dataclass
+@dataclass(eq=False)
 class MaterialCardBase(Card):
     """素材牌基类。继承 Card（本质是一张带效果的 Token Skill 牌）。
 

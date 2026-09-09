@@ -94,7 +94,7 @@ class MaterialEffectSpec:
     consumes_component: bool = False
 
 
-@dataclass
+@dataclass(eq=False)
 class MaterialBundle:
     """一捆素材 = 组件列表。可能是复合（>=2 组件合并）。
 

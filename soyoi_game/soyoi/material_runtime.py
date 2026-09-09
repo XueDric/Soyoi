@@ -19,6 +19,7 @@ from ..core.cards import Card
 from ..soyoi.card import can_carry_materials, get_loadout
 from .materials import MaterialBundle, MaterialCategory, MaterialEffectSpec, SLOTS_PER_CARD
 from .material_lifecycle import mark_processed
+from .persistent import sync_persistent_materials
 
 if TYPE_CHECKING:
     from ..core.combat import CombatState
@@ -50,18 +51,19 @@ def begin_combat(player: "Player") -> None:
 
 def store(player: "Player", material: "Card") -> MaterialBundle:
     """加入素材盒并把手牌里对应的素材卡放进手牌。"""
+    # 重复存入同一组件是幂等操作，两张同名素材则各占一份。
+    for existing in _box(player):
+        if any(component is material for component in existing.components):
+            return existing
     bundle = MaterialBundle.from_material(material)
-    if bundle not in _box(player):
-        _box(player).append(bundle)
+    _box(player).append(bundle)
     put_in_hand(player, material)
     return bundle
 
 
 def put_in_hand(player: "Player", material: "Card") -> None:
     """把素材卡放进玩家手牌（如果还没有）。"""
-    hand = player.piles.pile(1)  # PileType.HAND
-    if material not in hand.cards:
-        hand.add(material)
+    player.piles.put_in_hand(material, player.hand_limit)
 
 
 def remove(player: "Player", bundle: MaterialBundle) -> bool:
@@ -81,6 +83,7 @@ def attach(player: "Player", carrier: "Card", slot: int, bundle: MaterialBundle)
     replaced = loadout.replace(slot, bundle)
     mark_processed(carrier)
     carrier.dynamic_vars["MaterialCount"] = loadout.material_count
+    sync_persistent_materials(carrier)
     return replaced
 
 
@@ -97,8 +100,12 @@ def try_attach_from_box(player: "Player", bundle: MaterialBundle, carrier: "Card
     box = _box(player)
     if bundle not in box or not ccm(carrier):
         return None
+    # 先验证槽位并完成加工，再消费盒中素材；无效槽位不丢素材。
+    replaced = attach(player, carrier, slot, bundle)
     box.remove(bundle)
-    return attach(player, carrier, slot, bundle)
+    for component in bundle.components:
+        player.piles.exhaust(component)
+    return replaced
 
 
 def try_merge_from_box(player: "Player", left: MaterialBundle, right: MaterialBundle) -> Optional[MaterialBundle]:

@@ -43,25 +43,38 @@ class Creature:
         if p is None:
             p = Power(kind=kind, amount=0)
             self.powers[name] = p
-        p.add(delta)
+        if name in (Powers.STRENGTH, Powers.TEMP_STRENGTH, Powers.DEXTERITY):
+            p.amount += delta
+        else:
+            p.add(delta)
         return p.amount
 
     # --- 战斗数值 ---
     def gain_block(self, amount: float) -> int:
-        self.block += int(amount)
+        self.block += max(0, int(amount))
         return self.block
 
     def take_attack(self, amount: float, attacker: Optional["Creature"] = None) -> int:
         """受到一次攻击。先扣格挡，溢出扣血。返回实际扣血量。"""
         dmg = int(amount)
-        if dmg <= 0:
+        if dmg <= 0 or self.is_dead():
             return 0
         absorbed = min(self.block, dmg)
         self.block -= absorbed
         remainder = dmg - absorbed
         real = min(self.hp, remainder)
         self.hp -= real
+        thorns = self.get_power_amount(Powers.THORNS)
+        if thorns > 0 and attacker is not None and attacker is not self and not attacker.is_dead():
+            # 反伤不是攻击：不套力量/易伤，不递归触发对方荆棘。
+            attacker.take_attack(thorns)
         return real
+
+    def lose_hp(self, amount: int) -> int:
+        """直接失去生命，无视格挡且不触发荆棘。"""
+        lost = min(max(0, self.hp), max(0, int(amount)))
+        self.hp -= lost
+        return lost
 
     def is_dead(self) -> bool:
         return self.hp <= 0
@@ -85,13 +98,12 @@ class Creature:
         """回合结束的状态结算（中毒等）。基础在此，子类可扩展。"""
         poison = self.get_power_amount(Powers.POISON)
         if poison > 0:
-            self.take_attack(poison)   # 中毒是失去生命还是攻击？简化：直接扣血，无视格挡
+            self.lose_hp(poison)
             self.add_power(Powers.POISON, -1)
         # 清理临时力量
-        if self.has_power(Powers.TEMP_STRENGTH):
+        if Powers.TEMP_STRENGTH in self.powers:
             self.powers[Powers.TEMP_STRENGTH].amount = 0
-        if self.has_power(Powers.VIGOR):
-            self.powers[Powers.VIGOR].amount = 0
+        # 活力保留到下一张攻击牌，不随回合结束清空。
 
         # 易伤/虚弱：每回合结束各减1层，避免永久累积（类尖塔标准行为）。
         # add_power 内部用 max(0, ...) 保证不会减到负数；减到 0 即清空该状态。
