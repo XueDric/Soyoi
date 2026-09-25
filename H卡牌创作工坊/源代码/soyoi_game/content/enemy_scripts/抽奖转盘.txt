@@ -1,0 +1,13 @@
+# 抽奖转盘：模仿原游戏“Boss 塞伤口”的套路
+# 它打得不疼，但每回合都往你牌堆里塞铁屑，手牌越来越脏
+# id 是英文编号：命令行能选它，敌人立绘也按它命名(assets/enemies/lucky_wheel.png)
+id = lucky_wheel
+name = 抽奖转盘
+hp = 120
+flavor = 再来一次？再来一次？
+appearance = robot / 130,105,70 / 218,91,75
+
+# 三段循环：小连击 / 塞铁屑 / 重击
+attack 5 x2
+attack 4 effect=vulnerable,2 stuff=2
+attack 14

@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "card_id": "user_20260923215920602547",
+  "title": "猛击",
+  "cost": 2,
+  "card_type": "attack",
+  "rarity": "common",
+  "target": "enemy",
+  "keywords": [],
+  "text": "造成6点伤害（2段）。给予1层易伤。给予1层虚弱。",
+  "effects": [
+    {
+      "op": "damage",
+      "value": 6,
+      "hits": 2
+    },
+    {
+      "op": "vulnerable",
+      "value": 1,
+      "hits": 1
+    },
+    {
+      "op": "weak",
+      "value": 1,
+      "hits": 1
+    }
+  ],
+  "art": "art/user_20260923215920602547.webp"
+}

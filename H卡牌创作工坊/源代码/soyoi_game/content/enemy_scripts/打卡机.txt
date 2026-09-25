@@ -1,0 +1,15 @@
+# 打卡机：模仿原游戏“邪教徒”的套路 —— 第一回合先强化，之后一直打
+# 拖得越久越痛，逼玩家速杀
+# id 是英文编号：命令行能选它，敌人立绘也按它命名(assets/enemies/timeclock.png)
+id = timeclock
+name = 打卡机
+hp = 56
+flavor = 滴——请出示工牌。
+appearance = colossus / 96,88,80 / 238,190,62
+
+# 回合1: 强化自己(力量 +3)
+buff 3
+# 回合2 起： 一直攻击
+attack 6
+attack 6
+attack 9

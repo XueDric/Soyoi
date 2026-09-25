@@ -1,0 +1,26 @@
+[project]
+name = "soyoi-python-port"
+version = "0.1.0"
+description = "Python 卡牌创作工坊：自己造卡牌，再进对局验证效果"
+requires-python = ">=3.10"
+dependencies = ["pygame-ce==2.5.7"]
+
+[project.scripts]
+soyoi = "main:main"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = [
+    "soyoi_game",
+    "soyoi_game.core",
+    "soyoi_game.combat",
+    "soyoi_game.soyoi",
+    "soyoi_game.content",
+]
+py-modules = ["main"]
+
+[tool.ruff]
+line-length = 100

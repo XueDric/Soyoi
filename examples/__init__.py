@@ -1,2 +1,0 @@
-"""Runnable integration examples."""
-

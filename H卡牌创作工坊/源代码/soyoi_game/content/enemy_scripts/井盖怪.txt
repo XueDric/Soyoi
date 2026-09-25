@@ -1,0 +1,15 @@
+# 井盖怪：最基础的脚本敌人，三段循环(攻击 → 防御 → 攻击)
+# 井号开头是注释；动作行按顺序循环执行
+# id 是英文编号：命令行能选它，敌人立绘也按它命名(assets/enemies/manhole.png)
+id = manhole
+name = 井盖怪
+hp = 40
+flavor = 它把自己拧在井口上，谁也不许过。
+appearance = robot / 120,120,110 / 218,91,75
+
+# 回合1: 攻击 9
+attack 9
+# 回合2: 套 6 点格挡
+defend 6
+# 回合3: 攻击 7，并让你虚弱 1 层
+attack 7 effect=weak,1
